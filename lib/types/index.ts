@@ -52,6 +52,21 @@ export interface GraphData {
   links: DependencyEdge[];
 }
 
+export interface ScanStatus {
+  status: string;
+  message: string;
+  repository?: string;
+  total_files?: number;
+  total_lines?: number;
+  languages?: Record<string, number>;
+  extensions?: Record<string, number>;
+  contributors?: number;
+  repository_risk?: number;
+  risk_distribution?: { name: string; value: number }[];
+  top_risky_files?: FileMetrics[];
+  artifact_dir?: string;
+}
+
 export interface AIMessage {
   id: string;
   role: "user" | "assistant";
