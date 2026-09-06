@@ -1,7 +1,12 @@
 import { GraphData, ScanStatus } from "../types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ||
+
+let API_URL = process.env.NEXT_PUBLIC_API_URL ||
   (typeof window !== "undefined" ? `${window.location.protocol}//${window.location.hostname}:8000` : "http://localhost:8000");
+
+// Prevent double /api/api/ paths if the user configured NEXT_PUBLIC_API_URL with a trailing /api
+if (API_URL.endsWith("/api")) API_URL = API_URL.slice(0, -4);
+if (API_URL.endsWith("/")) API_URL = API_URL.slice(0, -1);
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -15,16 +20,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return response.json();
 }
 
-export function startScan(gitUrl: string) {
+export function startScan(gitUrl: string, fullHistory = false) {
   return request<{ scan_id: string }>("/api/scan", {
     method: "POST",
-    body: JSON.stringify({ git_url: gitUrl }),
+    body: JSON.stringify({ git_url: gitUrl, full_history: fullHistory }),
   });
 }
 
-export async function uploadLocalRepo(file: File) {
+export async function uploadLocalRepo(file: File, fullHistory = false) {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("full_history", String(fullHistory));
   const response = await fetch(`${API_URL}/api/scan/upload`, {
     method: "POST",
     body: formData,

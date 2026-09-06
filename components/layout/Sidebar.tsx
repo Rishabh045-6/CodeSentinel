@@ -37,7 +37,7 @@ export function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: boolean,
       <div className={`p-6 flex items-center ${isCollapsed ? "justify-center px-0" : ""}`}>
         <h1 className={`font-bold flex items-center gap-2 text-primary ${isCollapsed ? "text-xl" : "text-2xl"}`}>
           <FolderGit2 className="w-6 h-6 shrink-0" />
-          {!isCollapsed && <span>CodeLens AI</span>}
+          {!isCollapsed && <span>CodeSentinel</span>}
         </h1>
       </div>
 

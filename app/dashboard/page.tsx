@@ -24,10 +24,30 @@ function DashboardContent() {
   const searchParams = useSearchParams();
   const scanId = searchParams.get("scan_id");
   const [overview, setOverview] = useState<ScanStatus | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (scanId) getOverview(scanId).then(setOverview).catch(console.error);
+    if (!scanId) return;
+
+    getOverview(scanId)
+      .then(setOverview)
+      .catch((error) => setLoadError(error instanceof Error ? error.message : "Unable to load scan"));
   }, [scanId]);
+
+  const displayError = loadError || (!scanId ? "No scan was selected." : null);
+  if (displayError) {
+    return (
+      <div className="flex h-[calc(100vh-80px)] items-center justify-center p-8">
+        <div className="max-w-md text-center">
+          <h1 className="text-2xl font-bold text-gray-900">Unable to load this scan</h1>
+          <p className="mt-2 text-gray-500">{displayError}</p>
+          <Link href="/" className="mt-6 inline-flex rounded-lg bg-primary px-4 py-2 font-medium text-white hover:opacity-90">
+            Start a new scan
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!overview) {
     return (
@@ -85,11 +105,11 @@ function DashboardContent() {
           { label: "Total Files", value: repository.files.toLocaleString(), icon: FileCode, color: "text-blue-500", bg: "bg-blue-50" },
           { label: "Total Lines", value: repository.lines.toLocaleString(), icon: Activity, color: "text-purple-500", bg: "bg-purple-50" },
           { label: "Contributors", value: repository.contributors, icon: Users, color: "text-green-500", bg: "bg-green-50" },
-          { label: "High Risk Files", value: riskyFiles.filter((file) => file.riskScore >= 80).length, icon: ShieldAlert, color: "text-red-500", bg: "bg-red-50" },
+          { label: "High Risk Files", value: riskyFiles.filter((file) => file.riskScore >= 50).length, icon: ShieldAlert, color: "text-red-500", bg: "bg-red-50" },
           { 
             label: "Repository Risk", 
             value: `${repository.riskScore.toFixed(1)}%`,
-            subtitle: "Medium Risk",
+            subtitle: overview?.risk_label || (repository.riskScore >= 70 ? "High Risk" : repository.riskScore >= 35 ? "Medium Risk" : "Low Risk"),
             icon: TriangleAlert, 
             color: "text-white", 
             bg: "bg-gradient-to-br from-orange-400 to-red-500",

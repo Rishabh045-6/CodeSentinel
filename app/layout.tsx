@@ -14,7 +14,7 @@ const bodyFont = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "CodeLens AI",
+  title: "CodeSentinel",
   description: "Understand your codebase before it breaks.",
 };
 

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 :root {
   --background: #F8F9FA;
@@ -22,4 +23,24 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-body), serif;
+}
+
+.ai-markdown pre {
+  overflow-x: auto;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  background: #172033;
+  color: #f8fafc;
+  padding: 1rem;
+}
+
+.ai-markdown pre code {
+  background: transparent;
+  color: #f8fafc;
+  padding: 0;
+}
+
+.ai-markdown :not(pre) > code {
+  color: #1e293b;
+  background: #eef2f7;
 }

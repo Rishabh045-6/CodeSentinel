@@ -79,4 +79,10 @@ export interface AISource {
   type: "file" | "graph" | "commit" | "doc";
   name: string;
   url?: string;
+  start_line?: number;
+  end_line?: number;
+  risk_score?: number;
+  git_churn?: number;
+  recent_commits?: string;
+  dependencies?: string;
 }

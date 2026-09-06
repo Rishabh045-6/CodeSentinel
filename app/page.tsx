@@ -21,6 +21,7 @@ export default function LandingPage() {
   const [progress, setProgress] = useState(0);
   const [gitUrl, setGitUrl] = useState("");
   const [error, setError] = useState("");
+  const [fullHistory, setFullHistory] = useState(false);
 
   const handleScan = async () => {
     if (!gitUrl.trim()) return;
@@ -29,16 +30,34 @@ export default function LandingPage() {
     setProgress(0);
     setError("");
     try {
-      const { scan_id } = await startScan(gitUrl.trim());
-      let status = await getScanStatus(scan_id);
-      while (status.status !== "COMPLETED" && status.status !== "FAILED") {
-        const stage = scanStages.findIndex((item) => item.status === status.status);
-        if (stage >= 0) setCurrentStage(stage);
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        status = await getScanStatus(scan_id);
-      }
-      if (status.status === "FAILED") throw new Error(status.message);
+      const { scan_id } = await startScan(gitUrl.trim(), fullHistory);
+      
+      const poll = async (): Promise<void> => {
+        let status = await getScanStatus(scan_id);
+        while (status.status !== "COMPLETED" && status.status !== "FAILED") {
+          const stage = scanStages.findIndex((item) => item.status === status.status);
+          if (stage >= 0) {
+            setCurrentStage(stage);
+            // Compute progress: each completed stage is a fraction, plus partial credit for current
+            const stageProgress = ((stage + 0.5) / scanStages.length) * 100;
+            setProgress(Math.min(95, stageProgress));
+          } else {
+            // QUEUED or unknown — show a small amount of progress
+            setProgress(2);
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1500));
+          status = await getScanStatus(scan_id);
+        }
+        return status as any;
+      };
+      
+      const finalStatus: any = await poll();
+      if (finalStatus?.status === "FAILED") throw new Error(finalStatus.message);
+      
       setCurrentStage(scanStages.length);
+      setProgress(100);
+      // Brief pause so user sees 100%
+      await new Promise((resolve) => setTimeout(resolve, 400));
       router.push(`/dashboard?scan_id=${encodeURIComponent(scan_id)}`);
     } catch (scanError) {
       setError(scanError instanceof Error ? scanError.message : "Scan failed");
@@ -106,6 +125,16 @@ export default function LandingPage() {
                 Analyze Repository <ArrowRight className="w-4 h-4" />
               </button>
             </div>
+
+            <label className="flex items-center justify-center gap-2 text-sm text-foreground/70">
+              <input
+                type="checkbox"
+                checked={fullHistory}
+                onChange={(event) => setFullHistory(event.target.checked)}
+                className="h-4 w-4 accent-primary"
+              />
+              Include full Git history for churn metrics
+            </label>
             
             <div className="pt-8 text-foreground/50 text-sm">
               or <button onClick={() => document.getElementById('file-upload')?.click()} className="text-primary hover:underline">Upload Local Repository</button>
@@ -125,17 +154,25 @@ export default function LandingPage() {
                   
                   try {
                     const { uploadLocalRepo } = await import("../lib/api/client");
-                    const { scan_id } = await uploadLocalRepo(file);
+                    const { scan_id } = await uploadLocalRepo(file, fullHistory);
                     
                     let status = await getScanStatus(scan_id);
                     while (status.status !== "COMPLETED" && status.status !== "FAILED") {
                       const stage = scanStages.findIndex((item) => item.status === status.status);
-                      if (stage >= 0) setCurrentStage(stage);
-                      await new Promise((resolve) => setTimeout(resolve, 1000));
+                      if (stage >= 0) {
+                        setCurrentStage(stage);
+                        const stageProgress = ((stage + 0.5) / scanStages.length) * 100;
+                        setProgress(Math.min(95, stageProgress));
+                      } else {
+                        setProgress(2);
+                      }
+                      await new Promise((resolve) => setTimeout(resolve, 1500));
                       status = await getScanStatus(scan_id);
                     }
                     if (status.status === "FAILED") throw new Error(status.message);
                     setCurrentStage(scanStages.length);
+                    setProgress(100);
+                    await new Promise((resolve) => setTimeout(resolve, 400));
                     router.push(`/dashboard?scan_id=${encodeURIComponent(scan_id)}`);
                   } catch (scanError) {
                     setError(scanError instanceof Error ? scanError.message : "Upload failed");

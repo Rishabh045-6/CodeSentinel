@@ -1,12 +1,14 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BrainCircuit, Send, FileCode2, GitCommit, Network, FileText, Loader2 } from "lucide-react";
 import { AIMessage, AISource } from "../../lib/types";
 import { askAi } from "../../lib/api/client";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 function AIAnalystContent() {
   const searchParams = useSearchParams();
@@ -53,6 +55,34 @@ function AIAnalystContent() {
     }
   };
 
+  const uniqueSources = (sources: AISource[]) => Array.from(
+    new Map(sources.map((source) => [`${source.type}:${source.id}`, source])).values()
+  );
+
+  const [suggestions, setSuggestions] = useState<string[]>([
+    "What dependencies exist in the architecture?",
+    "Where is authentication implemented?", 
+    "Which files have changed the most recently?"
+  ]);
+
+  useEffect(() => {
+    if (scanId) {
+      import("../../lib/api/client").then(({ getScanStatus }) => {
+        getScanStatus(scanId).then((status) => {
+          if (status.top_risky_files && status.top_risky_files.length > 0) {
+            const topFile = status.top_risky_files[0].path;
+            const name = topFile.split('/').pop() || topFile;
+            setSuggestions([
+              `What depends on ${name}?`,
+              `Why is ${name} marked as high risk?`,
+              "Which files have changed the most recently?"
+            ]);
+          }
+        }).catch(console.error);
+      });
+    }
+  }, [scanId]);
+
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] bg-background">
       <div className="bg-white border-b border-gray-200 px-8 py-6 text-center shadow-sm z-10">
@@ -77,25 +107,53 @@ function AIAnalystContent() {
                   ? 'bg-primary text-white rounded-br-none shadow-md shadow-primary/20' 
                   : 'bg-white border border-gray-100 text-gray-800 rounded-bl-none shadow-sm'
               }`}>
-                <div className="whitespace-pre-wrap leading-relaxed">
-                  {msg.content}
+                <div className={`leading-relaxed ${msg.role === 'assistant' ? 'ai-markdown prose prose-sm prose-slate max-w-none prose-table:border-collapse prose-table:w-full prose-td:border prose-td:border-gray-200 prose-td:p-2 prose-th:border prose-th:border-gray-200 prose-th:p-2 prose-th:bg-gray-50 prose-a:text-primary prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:rounded-md' : 'whitespace-pre-wrap'}`}>
+                  {msg.role === 'assistant' ? (
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {msg.content}
+                    </ReactMarkdown>
+                  ) : (
+                    msg.content
+                  )}
                 </div>
                 
                 {msg.sources && msg.sources.length > 0 && (
                   <div className="mt-4 pt-4 border-t border-gray-100">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                       Sources used
                     </p>
-                    <div className="flex flex-wrap gap-2">
-                      {msg.sources.map((source: AISource) => (
-                        <Link 
-                          key={source.id} 
-                          href={source.type === 'file' ? `/code?file=${source.id}` : '/graph'}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 hover:bg-blue-50 hover:text-primary hover:border-primary/30 border border-gray-200 rounded-lg text-xs font-medium text-gray-600 transition-colors"
-                        >
-                          {getSourceIcon(source.type)}
-                          {source.name}
-                        </Link>
+                    <div className="flex flex-col gap-3">
+                      {uniqueSources(msg.sources).map((source: AISource) => (
+                        <div key={`${source.type}-${source.id}`} className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm hover:border-primary/30 transition-colors">
+                          <div className="flex items-center gap-2 font-medium text-primary mb-2">
+                            {getSourceIcon(source.type)}
+                            <Link 
+                              href={source.type === 'file'
+                                ? `/code?scan_id=${encodeURIComponent(scanId || "")}&file=${encodeURIComponent(source.id)}`
+                                : `/graph?scan_id=${encodeURIComponent(scanId || "")}`}
+                              className="hover:underline"
+                            >
+                              {source.id}{source.start_line && source.end_line && source.start_line !== -1 ? `:${source.start_line}-${source.end_line}` : ''}
+                            </Link>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-gray-600">
+                            {source.risk_score !== undefined && (
+                              <div className="flex items-center gap-1">
+                                <span className="font-semibold text-gray-700">Risk metrics:</span> 
+                                <span className={source.risk_score > 70 ? "text-red-600 font-medium" : source.risk_score > 30 ? "text-orange-500 font-medium" : "text-green-600 font-medium"}>
+                                  {source.risk_score}/100
+                                </span>
+                              </div>
+                            )}
+                            {source.git_churn !== undefined && (
+                              <div><span className="font-semibold text-gray-700">Churn:</span> {source.git_churn} modifications</div>
+                            )}
+                            {source.recent_commits && source.recent_commits !== "None" && (
+                              <div className="col-span-2 truncate"><span className="font-semibold text-gray-700">Git history:</span> {source.recent_commits}</div>
+                            )}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -139,7 +197,7 @@ function AIAnalystContent() {
           </form>
           
           <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
-            {["What depends on decision_engine.py?", "Where is authentication implemented?", "Which files have changed the most recently?"].map(suggestion => (
+            {suggestions.map(suggestion => (
               <button 
                 key={suggestion}
                 type="button"
